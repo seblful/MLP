@@ -6,25 +6,22 @@ class MLP:
                  train_data,
                  train_labels,
                  val_data,
-                 val_labels):
-        self.input_shape = (28, 28)
+                 val_labels,
+                 layers=[3, 5, 2],
+                 batch_size=10,
+                 lr=0.01,
+                 num_epochs=100):
 
-        self.train_data = train_data.reshape(
-            train_data.shape[0], train_data.shape[1], 1)
+        # self.train_data = train_data.reshape(
+        #     train_data.shape[0], train_data.shape[1], 1)
+        self.train_data = train_data
         self.train_labels = train_labels
 
         self.val_data = val_data
         self.val_labels = val_labels
 
-        self.resolution = int(self.input_shape[0] * self.input_shape[1])
-
-        self.layers_sizes = [self.resolution, 5, 10, 3]
+        self.layers_sizes = [self.train_data.shape[1]] + layers
         self.num_layers = len(self.layers_sizes)
-
-        self.weights = []
-        self.biases = []
-
-        self.init_weights_and_biases()
 
         self.batch_size = 10
         self.number_of_chunks = len(self.train_data) // self.batch_size
@@ -36,6 +33,16 @@ class MLP:
 
         self.lr = 0.01
         self.num_epochs = 100
+
+        self.weights = []
+        self.biases = []
+
+        self.init_weights_and_biases()
+
+        print(self.train_data.shape)
+        print([arr.shape for arr in self.weights])
+        print([arr.shape for arr in self.biases])
+        print("*" * 10, "init done")
 
     def init_weights_and_biases(self):
         for num_neurons_ind in range(len(self.layers_sizes) - 1):
@@ -53,89 +60,61 @@ class MLP:
     def relu(self, x):
         return np.maximum(x, 0)
 
+    def relu_deriv(self, x):
+        return x > 0
+
     def softmax(self, x):
         a = np.exp(x) / sum(np.exp(x))
         return a
 
-    def relu_deriv(self, x):
-        return x > 0
-
     def forward_propagation(self, x):
-        a = x
-        activations = [a]
-        zs = []
+        activations = [x]
 
-        for weight, bias in zip(self.weights, self.biases):
-            z = np.dot(weight, a) + bias
+        for layer in range(self.num_layers - 2):
+            print(self.weights[layer].shape, activations[layer].shape)
+            z = np.dot(self.weights[layer],
+                       activations[layer]) + self.biases[layer]
             a = self.relu(z)
-
-            zs.append(z)
             activations.append(a)
 
-        return activations, zs
+        print(self.weights[-1].shape, activations[-1].shape)
+        output = self.softmax(
+            np.dot(self.weights[-1], activations[-1]) + self.biases[-1])
+        return activations, output
 
-    def backward_propagation(self, x, y):
-        activations, zs = self.forward_propagation(x)
-        delta_weights = [np.zeros(weight.shape) for weight in self.weights]
-        delta_biases = [np.zeros(bias.shape) for bias in self.biases]
+    def backward_propagation(self, activations, output, y):
+        m = y.shape[0]
+        grads_weights = []
+        grads_biases = []
+        print(output)
+        delta = output - y
+        grads_weights.append(np.dot(delta, activations[-2].T) / m)
+        grads_biases.append(np.mean(delta, axis=1, keepdims=True))
+        for l in range(self.num_layers - 3, -1, -1):
+            delta = np.dot(self.weights[l + 1].T, delta) * \
+                self.relu_deriv(activations[l + 1])
+            grads_weights.insert(0, np.dot(delta, activations[l].T) / m)
+            grads_biases.insert(0, np.mean(delta, axis=1, keepdims=True))
+        return grads_weights, grads_biases
 
-        delta = self.cost_derivative(
-            activations[-1], y) * self.sigmoid_derivative(zs[-1])
-        delta_weights[-1] = np.dot(delta, activations[-2].T)
-        delta_biases[-1] = delta
-
-        for l in range(2, self.num_layers):
-            z = zs[-l]
-            sp = self.sigmoid_derivative(z)
-            delta = np.dot(self.weights[-l + 1].T, delta) * sp
-            delta_weights[-l] = np.dot(delta, activations[-l - 1].T)
-            delta_biases[-l] = delta
-
-        return delta_weights, delta_biases
-
-    def update_weights_and_biases(self, delta_weights, delta_biases):
-        self.weights = [weight - (self.lr * delta_weight)
-                        for weight, delta_weight in zip(self.weights, delta_weights)]
-        self.biases = [bias - (self.lr * delta_bias)
-                       for bias, delta_bias in zip(self.biases, delta_biases)]
+    def update_parameters(self, grads_weights, grads_biases):
+        for layer in range(self.num_layers - 1):
+            self.weights[layer] -= self.lr * grads_weights[layer]
+            self.biases[layer] -= self.lr * grads_biases[layer]
 
     def train(self):
         for epoch in range(self.num_epochs):
             if epoch % 10 == 0:
                 print(
                     f"Training on epoch {epoch + 1} from {self.num_epochs} epochs...")
-
-            for x_batch, y_batch in zip(self.x_batches, self.y_batches):
-                delta_weights_sum = [np.zeros(weight.shape)
-                                     for weight in self.weights]
-                delta_biases_sum = [np.zeros(bias.shape)
-                                    for bias in self.biases]
-
-                for x, y in zip(x_batch, y_batch):
-                    delta_weights, delta_biases = self.backward_propagation(
-                        x, y)
-                    delta_weights_sum = [
-                        dw + dw_batch for dw, dw_batch in zip(delta_weights_sum, delta_weights)]
-                    delta_biases_sum = [
-                        db + db_batch for db, db_batch in zip(delta_biases_sum, delta_biases)]
-
-                delta_weights_avg = [
-                    dw / self.batch_size for dw in delta_weights_sum]
-                delta_biases_avg = [
-                    db / self.batch_size for db in delta_biases_sum]
-
-                self.update_weights_and_biases(
-                    delta_weights_avg, delta_biases_avg)
+            for batch in range(self.number_of_chunks):
+                x_batch = self.x_batches[batch]
+                y_batch = self.y_batches[batch]
+                activations, output = self.forward_propagation(x_batch.T)
+                grads_weights, grads_biases = self.backward_propagation(
+                    activations, output.T, y_batch.T)
+                self.update_parameters(grads_weights, grads_biases)
 
     def predict(self, x):
-        activations, _ = self.forward_propagation(x)
-        return np.argmax(activations[-1])
-
-    def sigmoid(self, z):
-        return 1 / (1 + np.exp(-z))
-
-    def sigmoid_derivative(self, z):
-        return self.sigmoid(z) * (1 - self.sigmoid(z))
-
-    def cost_derivative(self, output_activations, y):
-        return output_activations - y
+        _, output = self.forward_propagation(x.T)
+        return np.argmax(output, axis=0)
