@@ -15,15 +15,13 @@ def create_mnist():
 def main():
 
     x_train, y_train, x_test, y_test = create_mnist()
-    mlp = MLP(train_data=x_train[:1000, :],
-              train_labels=y_train[:1000],
+    mlp = MLP(train_data=x_train,
+              train_labels=y_train,
               val_data=x_test[:500, :],
-              val_labels=y_test[:500])
+              val_labels=y_test[:500],
+              num_epochs=1000)
 
     mlp.train()
-
-    prediction = mlp.predict(x_train[1002, :])
-    print(prediction)
 
 
 if __name__ == "__main__":
