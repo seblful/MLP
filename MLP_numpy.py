@@ -7,8 +7,9 @@ class MLP:
                  train_labels,
                  val_data,
                  val_labels,
-                 batch_size=10,
-                 lr=0.01,
+                 num_classes=10,
+                 batch_size=3200,
+                 lr=0.001,
                  num_epochs=100):
 
         self.train_data = train_data
@@ -17,48 +18,40 @@ class MLP:
         self.val_data = val_data
         self.val_labels = val_labels
 
-        self.num_classes = 10
+        self.num_classes = num_classes
 
-        self.layers_sizes = [self.train_data.shape[1]] + [15, 10]
+        self.layers_sizes = [10, num_classes]
         self.num_layers = len(self.layers_sizes)
 
         self.batch_size = batch_size
-        self.number_of_chunks = len(self.train_data) // self.batch_size
-
-        self.x_batches = np.split(
-            self.train_data, self.number_of_chunks, axis=0)
-        self.y_batches = np.split(
-            self.train_labels, self.number_of_chunks, axis=0)
+        self.num_batches = len(train_data) // self.batch_size
+        self.batch_indices = np.random.permutation(len(train_data))
 
         self.lr = lr
         self.num_epochs = num_epochs
 
-        self.weights = []
-        self.biases = []
-
         self.init_weights_and_biases()
 
+        # print(self.train_data.shape, self.W1.shape,
+        #       self.b1.shape, self.W2.shape, self.b2.shape)
+
     def init_weights_and_biases(self):
-        for num_neurons_ind in range(self.num_layers - 1):
+        self.W1 = np.random.random(
+            size=(self.layers_sizes[0], self.train_data.shape[1]))
+        self.b1 = np.random.random(size=(self.layers_sizes[0], 1))
+        self.W2 = np.random.random(
+            size=(self.layers_sizes[1], self.layers_sizes[0]))
+        self.b2 = np.random.random(size=(self.layers_sizes[1], 1))
 
-            weight_size = (self.layers_sizes[num_neurons_ind + 1],
-                           self.layers_sizes[num_neurons_ind])
-            bias_size = (self.layers_sizes[num_neurons_ind + 1], 1)
-
-            random_weight = np.random.uniform(size=weight_size)
-            random_bias = np.random.uniform(size=bias_size)
-
-            self.weights.append(random_weight)
-            self.biases.append(random_bias)
-
-    def relu(self, x):
-        return np.maximum(x, 0)
+    def relu(self, z):
+        return np.maximum(z, 0)
 
     def relu_deriv(self, x):
         return x > 0
 
-    def softmax(self, x):
-        a = np.exp(x) / sum(np.exp(x))
+    def softmax(self, z):
+        a = np.exp(z) / sum(np.exp(z))
+        print(a)
         return a
 
     def one_hot(self, y):
@@ -67,58 +60,60 @@ class MLP:
         one_hot_y = one_hot_y.T
         return one_hot_y
 
-    def forward_propagation(self, x):
-        activations = [x]
+    def forward_propagation(self, X):
+        Z1 = self.W1 @ X + self.b1
+        A1 = self.relu(Z1)
+        Z2 = self.W2 @ A1 + self.b2
+        A2 = self.softmax(Z2)
 
-        for layer in range(self.num_layers - 2):
+        return Z1, A1, Z2, A2
 
-            z = np.dot(self.weights[layer],
-                       activations[layer]) + self.biases[layer]
-            a = self.relu(z)
-            activations.append(a)
-
-        output = self.softmax(
-            np.dot(self.weights[-1], activations[-1]) + self.biases[-1])
-        return activations, output
-
-    def backward_propagation(self, activations, output, y):
-        grads_weights = []
-        grads_biases = []
-
+    def backward_propagation(self, Z1, A1, Z2, A2, X, y):
         one_hot_y = self.one_hot(y)
-        delta = output - one_hot_y
-        grads_weights.append(
-            np.dot(delta, activations[-2].T) / self.num_classes)
-        grads_biases.append(np.mean(delta, axis=1, keepdims=True))
 
-        for l in range(self.num_layers - 3, -1, -1):
-            delta = np.dot(self.weights[l+1].T, delta) * \
-                self.relu_deriv(activations[l + 1])
-            grads_weights.insert(
-                0, np.dot(delta, activations[l].T) / self.num_classes)
-            grads_biases.insert(0, np.mean(delta, axis=1, keepdims=True))
+        dZ2 = A2 - one_hot_y
+        dW2 = dZ2 @ A1.T / self.num_classes
+        db2 = np.sum(dZ2, axis=1, keepdims=True) / self.num_classes
 
-        return grads_weights, grads_biases
+        dZ1 = self.W2.T @ dZ2 * self.relu_deriv(Z1)
+        dW1 = dZ1 @ X.T / self.num_classes
+        db1 = np.sum(dZ1, axis=1, keepdims=True) / self.num_classes
 
-    def update_parameters(self, grads_weights, grads_biases):
-        for layer in range(self.num_layers - 1):
-            # print(self.weights[layer].shape, grads_weights[layer].shape)
-            self.weights[layer] -= self.lr * grads_weights[layer]
-            self.biases[layer] -= self.lr * grads_biases[layer]
+        return dW1, db1, dW2, db2
+
+    def update_parameters(self, dW1, db1, dW2, db2):
+        self.W1 -= self.lr * dW1
+        self.b1 -= self.lr * db1
+        self.W2 -= self.lr * dW2
+        self.b2 -= self.lr * db2
+
+    def predict(self, a):
+        return np.argmax(a, 0)
+
+    def get_accuracy(self, predictions, Y):
+        print(predictions, Y)
+        return np.sum(predictions == Y) / Y.size
 
     def train(self):
         for epoch in range(self.num_epochs):
-            if epoch % 10 == 0:
-                print(
-                    f"Training on epoch {epoch + 1} from {self.num_epochs} epochs...")
-            for batch in range(self.number_of_chunks):
-                x_batch = self.x_batches[batch]
-                y_batch = self.y_batches[batch]
-                activations, output = self.forward_propagation(x_batch.T)
-                grads_weights, grads_biases = self.backward_propagation(
-                    activations, output.T, y_batch.T)
-                self.update_parameters(grads_weights, grads_biases)
+            # Iterate over batches
+            for batch_idx in range(self.num_batches):
+                # Get the indices of the current batch
+                batch_indices = self.batch_indices[batch_idx *
+                                                   self.batch_size: (batch_idx + 1) * self.batch_size]
 
-    def predict(self, x):
-        _, output = self.forward_propagation(x.T)
-        return np.argmax(output, axis=0)
+                # Extract batch data
+                x_batch = self.train_data[batch_indices]
+                y_batch = self.train_labels[batch_indices]
+
+                Z1, A1, Z2, A2 = self.forward_propagation(x_batch.T)
+                dW1, db1, dW2, db2 = self.backward_propagation(
+                    Z1, A1, Z2, A2, x_batch.T, y_batch)
+                self.update_parameters(dW1, db1, dW2, db2)
+
+                if epoch % 10 == 0:
+                    print(
+                        f"Epoch {epoch + 1} from {self.num_epochs} epochs...")
+
+                    predictions = self.predict(A2)
+                    print(self.get_accuracy(predictions, y_batch))
