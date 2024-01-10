@@ -7,23 +7,22 @@ class MLP:
                  train_labels,
                  val_data,
                  val_labels,
-                 layers=[3, 5, 2],
                  batch_size=10,
                  lr=0.01,
                  num_epochs=100):
 
-        # self.train_data = train_data.reshape(
-        #     train_data.shape[0], train_data.shape[1], 1)
         self.train_data = train_data
         self.train_labels = train_labels
 
         self.val_data = val_data
         self.val_labels = val_labels
 
-        self.layers_sizes = [self.train_data.shape[1]] + layers
+        self.num_classes = 10
+
+        self.layers_sizes = [self.train_data.shape[1]] + [15, 10]
         self.num_layers = len(self.layers_sizes)
 
-        self.batch_size = 10
+        self.batch_size = batch_size
         self.number_of_chunks = len(self.train_data) // self.batch_size
 
         self.x_batches = np.split(
@@ -31,21 +30,16 @@ class MLP:
         self.y_batches = np.split(
             self.train_labels, self.number_of_chunks, axis=0)
 
-        self.lr = 0.01
-        self.num_epochs = 100
+        self.lr = lr
+        self.num_epochs = num_epochs
 
         self.weights = []
         self.biases = []
 
         self.init_weights_and_biases()
 
-        print(self.train_data.shape)
-        print([arr.shape for arr in self.weights])
-        print([arr.shape for arr in self.biases])
-        print("*" * 10, "init done")
-
     def init_weights_and_biases(self):
-        for num_neurons_ind in range(len(self.layers_sizes) - 1):
+        for num_neurons_ind in range(self.num_layers - 1):
 
             weight_size = (self.layers_sizes[num_neurons_ind + 1],
                            self.layers_sizes[num_neurons_ind])
@@ -67,38 +61,48 @@ class MLP:
         a = np.exp(x) / sum(np.exp(x))
         return a
 
+    def one_hot(self, y):
+        one_hot_y = np.zeros((y.size, y.max() + 1))
+        one_hot_y[np.arange(y.size), y] = 1
+        one_hot_y = one_hot_y.T
+        return one_hot_y
+
     def forward_propagation(self, x):
         activations = [x]
 
         for layer in range(self.num_layers - 2):
-            print(self.weights[layer].shape, activations[layer].shape)
+
             z = np.dot(self.weights[layer],
                        activations[layer]) + self.biases[layer]
             a = self.relu(z)
             activations.append(a)
 
-        print(self.weights[-1].shape, activations[-1].shape)
         output = self.softmax(
             np.dot(self.weights[-1], activations[-1]) + self.biases[-1])
         return activations, output
 
     def backward_propagation(self, activations, output, y):
-        m = y.shape[0]
         grads_weights = []
         grads_biases = []
-        print(output)
-        delta = output - y
-        grads_weights.append(np.dot(delta, activations[-2].T) / m)
+
+        one_hot_y = self.one_hot(y)
+        delta = output - one_hot_y
+        grads_weights.append(
+            np.dot(delta, activations[-2].T) / self.num_classes)
         grads_biases.append(np.mean(delta, axis=1, keepdims=True))
+
         for l in range(self.num_layers - 3, -1, -1):
-            delta = np.dot(self.weights[l + 1].T, delta) * \
+            delta = np.dot(self.weights[l+1].T, delta) * \
                 self.relu_deriv(activations[l + 1])
-            grads_weights.insert(0, np.dot(delta, activations[l].T) / m)
+            grads_weights.insert(
+                0, np.dot(delta, activations[l].T) / self.num_classes)
             grads_biases.insert(0, np.mean(delta, axis=1, keepdims=True))
+
         return grads_weights, grads_biases
 
     def update_parameters(self, grads_weights, grads_biases):
         for layer in range(self.num_layers - 1):
+            # print(self.weights[layer].shape, grads_weights[layer].shape)
             self.weights[layer] -= self.lr * grads_weights[layer]
             self.biases[layer] -= self.lr * grads_biases[layer]
 
