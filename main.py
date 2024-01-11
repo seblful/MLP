@@ -19,7 +19,8 @@ def main():
               train_labels=y_train,
               val_data=x_test[:500, :],
               val_labels=y_test[:500],
-              num_epochs=1000)
+              num_epochs=1000,
+              batch_size=3200)
 
     mlp.train()
 
