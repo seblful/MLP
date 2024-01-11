@@ -8,7 +8,7 @@ class MLP:
                  val_data,
                  val_labels,
                  num_classes=10,
-                 batch_size=3200,
+                 batch_size=320,
                  lr=0.001,
                  num_epochs=100):
 
@@ -36,12 +36,12 @@ class MLP:
         #       self.b1.shape, self.W2.shape, self.b2.shape)
 
     def init_weights_and_biases(self):
-        self.W1 = np.random.random(
-            size=(self.layers_sizes[0], self.train_data.shape[1]))
-        self.b1 = np.random.random(size=(self.layers_sizes[0], 1))
-        self.W2 = np.random.random(
-            size=(self.layers_sizes[1], self.layers_sizes[0]))
-        self.b2 = np.random.random(size=(self.layers_sizes[1], 1))
+        self.W1 = np.random.rand(
+            self.layers_sizes[0], self.train_data.shape[1]) - 0.5
+        self.b1 = np.random.rand(self.layers_sizes[0], 1) - 0.5
+        self.W2 = np.random.rand(
+            self.layers_sizes[1], self.layers_sizes[0]) - 0.5
+        self.b2 = np.random.rand(self.layers_sizes[1], 1) - 0.5
 
     def relu(self, z):
         return np.maximum(z, 0)
@@ -51,7 +51,7 @@ class MLP:
 
     def softmax(self, z):
         a = np.exp(z) / sum(np.exp(z))
-        print(a)
+        # print(a)
         return a
 
     def one_hot(self, y):
@@ -87,11 +87,16 @@ class MLP:
         self.W2 -= self.lr * dW2
         self.b2 -= self.lr * db2
 
-    def predict(self, a):
+    def predict_a(self, a):
         return np.argmax(a, 0)
 
+    def predict_val(self, X, W1, b1, W2, b2):
+        _, _, _, A2 = self.forward_propagation(W1, b1, W2, b2, X)
+        predictions = self.predict_a(A2)
+        return predictions
+
     def get_accuracy(self, predictions, Y):
-        print(predictions, Y)
+        # print(predictions, Y)
         return np.sum(predictions == Y) / Y.size
 
     def train(self):
@@ -115,5 +120,6 @@ class MLP:
                     print(
                         f"Epoch {epoch + 1} from {self.num_epochs} epochs...")
 
-                    predictions = self.predict(A2)
-                    print(self.get_accuracy(predictions, y_batch))
+                    train_predictions = self.predict_a(A2)
+                    val_pred = self.predict_val()
+                    print(self.get_accuracy(train_predictions, y_batch))
