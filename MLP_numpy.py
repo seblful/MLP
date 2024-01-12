@@ -52,11 +52,10 @@ class MLP:
 
     def softmax(self, z):
         a = np.exp(z) / sum(np.exp(z))
-        # print(a)
         return a
 
     def one_hot(self, y):
-        one_hot_y = np.zeros((y.size, y.max() + 1))
+        one_hot_y = np.zeros((y.size, self.num_classes))
         one_hot_y[np.arange(y.size), y] = 1
         one_hot_y = one_hot_y.T
         return one_hot_y
@@ -71,7 +70,6 @@ class MLP:
 
     def backward_propagation(self, Z1, A1, Z2, A2, X, y):
         one_hot_y = self.one_hot(y)
-
         dZ2 = A2 - one_hot_y
         dW2 = dZ2 @ A1.T / self.num_classes
         db2 = np.sum(dZ2, axis=1, keepdims=True) / self.num_classes
@@ -124,6 +122,7 @@ class MLP:
         for epoch in range(self.num_epochs):
             # Iterate over batches
             for batch_idx in range(self.num_batches):
+
                 # Get the indices of the current batch
                 batch_indices = self.batch_indices[batch_idx *
                                                    self.batch_size: (batch_idx + 1) * self.batch_size]
@@ -163,3 +162,4 @@ class MLP:
         # Visualize prediction
         plt.title(f"True label: {prediction}")
         plt.imshow(image.reshape(28, 28))
+        plt.show()
