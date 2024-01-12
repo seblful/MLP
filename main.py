@@ -13,16 +13,24 @@ def create_mnist():
 
 
 def main():
-
+    # Create data
     x_train, y_train, x_test, y_test = create_mnist()
     mlp = MLP(train_data=x_train,
               train_labels=y_train,
-              val_data=x_test[:500, :],
-              val_labels=y_test[:500],
-              num_epochs=1000,
-              batch_size=3200)
+              val_data=x_test,
+              val_labels=y_test,
+              batch_size=3200,
+              lr=0.001,
+              num_epochs=500)
 
+    # Train multilayer perceptron
     mlp.train()
+
+    # Visualize accuracy over epochs
+    mlp.visualize_training()
+
+    # Predict test image
+    mlp.predict_image(x_test[0])
 
 
 if __name__ == "__main__":
