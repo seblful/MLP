@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 class MLP:
@@ -32,8 +33,8 @@ class MLP:
 
         self.init_weights_and_biases()
 
-        # print(self.train_data.shape, self.W1.shape,
-        #       self.b1.shape, self.W2.shape, self.b2.shape)
+        self.train_history = []
+        self.val_history = []
 
     def init_weights_and_biases(self):
         self.W1 = np.random.rand(
@@ -90,16 +91,36 @@ class MLP:
     def predict_a(self, a):
         return np.argmax(a, 0)
 
-    def predict_val(self, X, W1, b1, W2, b2):
-        _, _, _, A2 = self.forward_propagation(W1, b1, W2, b2, X)
+    def predict_val(self, X):
+        _, _, _, A2 = self.forward_propagation(X)
         predictions = self.predict_a(A2)
         return predictions
 
     def get_accuracy(self, predictions, Y):
-        # print(predictions, Y)
         return np.sum(predictions == Y) / Y.size
 
+    def get_train_info(self, epoch, train_A2, y_batch):
+        # Get train and val predictions
+        train_pred = self.predict_a(train_A2)
+        val_pred = self.predict_val(self.val_data.T)
+
+        # Get train and val accuracy
+        train_accuracy = self.get_accuracy(train_pred, y_batch)
+        val_accuracy = self.get_accuracy(val_pred, self.val_labels)
+
+        # Add accuracy to history
+        self.train_history.append(train_accuracy)
+        self.val_history.append(val_accuracy)
+
+        if epoch % 10 == 0:
+            print(f"Epoch {epoch + 1} from {self.num_epochs} epochs...")
+
+            # Print train and val accuracy
+            print(f"Train accuracy: {train_accuracy:.3f}")
+            print(f"Validation accuracy: {val_accuracy:.3f}")
+
     def train(self):
+        # Iterate over epochs
         for epoch in range(self.num_epochs):
             # Iterate over batches
             for batch_idx in range(self.num_batches):
@@ -111,15 +132,34 @@ class MLP:
                 x_batch = self.train_data[batch_indices]
                 y_batch = self.train_labels[batch_indices]
 
+                # Gradient descent
                 Z1, A1, Z2, A2 = self.forward_propagation(x_batch.T)
                 dW1, db1, dW2, db2 = self.backward_propagation(
                     Z1, A1, Z2, A2, x_batch.T, y_batch)
                 self.update_parameters(dW1, db1, dW2, db2)
 
-                if epoch % 10 == 0:
-                    print(
-                        f"Epoch {epoch + 1} from {self.num_epochs} epochs...")
+                # Save and get training info
+                self.get_train_info(epoch, A2, y_batch)
 
-                    train_predictions = self.predict_a(A2)
-                    val_pred = self.predict_val()
-                    print(self.get_accuracy(train_predictions, y_batch))
+        print("Training has finished.")
+        self.get_train_info(epoch, A2, y_batch)
+
+    def visualize_training(self):
+        plt.plot(self.train_history)
+        plt.plot(self.val_history)
+        plt.title('Model accuracy')
+        plt.ylabel('Accuracy')
+        plt.xlabel('Epoch')
+        plt.legend(['Train', 'Validation'], loc='upper left')
+        plt.show()
+
+    def predict_image(self, image):
+        # Reshape image
+        image = image.reshape(1, image.shape[0])
+        image = image.T
+
+        prediction = self.predict_val(image)
+
+        # Visualize prediction
+        plt.title(f"True label: {prediction}")
+        plt.imshow(image.reshape(28, 28))
