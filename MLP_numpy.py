@@ -97,7 +97,7 @@ class MLP:
     def get_accuracy(self, predictions, Y):
         return np.sum(predictions == Y) / Y.size
 
-    def get_train_info(self, epoch, train_A2, y_batch):
+    def precess_train_info(self, epoch, train_A2, y_batch):
         # Get train and val predictions
         train_pred = self.predict_a(train_A2)
         val_pred = self.predict_val(self.val_data.T)
@@ -137,11 +137,11 @@ class MLP:
                     Z1, A1, Z2, A2, x_batch.T, y_batch)
                 self.update_parameters(dW1, db1, dW2, db2)
 
-                # Save and get training info
-                self.get_train_info(epoch, A2, y_batch)
+            # Save and get training info
+            self.precess_train_info(epoch, A2, y_batch)
 
         print("Training has finished.")
-        self.get_train_info(epoch, A2, y_batch)
+        self.precess_train_info(epoch, A2, y_batch)
 
     def visualize_training(self):
         plt.plot(self.train_history)
@@ -157,6 +157,7 @@ class MLP:
         image = image.reshape(1, image.shape[0])
         image = image.T
 
+        # Get predictions
         prediction = self.predict_val(image)
 
         # Visualize prediction
